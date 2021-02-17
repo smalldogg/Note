@@ -1,0 +1,48 @@
+## 服务器参数配置
+
+### general
+
+```properties
+datadir=/var/lib/mysql  #数据存放的目录
+pid_file=/var/lib/mysql/mysql.pid
+port=3306
+default_storage_engine=InnoDB
+skip-grant-tables #当忘记mysql的用户名密码的时候，可以配置这个参数，跳过权限表
+
+```
+
+### character
+
+```properties
+character_set_client 客户端数据的字符集
+character_set_results mysql发送给客户端的结果集所用的字符集
+character_set_database 数据库默认的字符集
+character_set_server mysql server的默认字符集
+```
+
+### connection
+
+```properties
+max_connections        mysql的最大连接数，如果数据库的并发连接请求比较大，应该调高该值
+max_user_connections   限制每个用户的连接个数
+```
+
+### log
+
+```properties
+log_error 指定错误日志文件名称，用于记录当mysqld启动和停止时，以及服务器在运行中发生任何严重错误时的相关信息
+log_bin   指定二进制日志文件名称，用于记录对数据造成更改的所有查询语句
+binlog_do_db 指定将更新记录到二进制日志的数据库，其他所有没有显式指定的数据库更新将忽略，不记录在日志中
+binlog_ignore_db 指定不将更新记录到二进制日志的数据库
+sync_binlog 指定多少次写日志后同步磁盘
+general_log 是否开启查询日志记录
+general_log_file 指定查询日志文件名，用于记录所有的查询语句
+slow_query_log 是否开启慢查询日志记录
+slow_query_log_file 指定慢查询日志名称
+long_query_time 设置慢查询时间
+log_slow_admin_statements 是否将管理语句写入慢查询日志 
+```
+
+### cache
+
+![](D:\MyWork\MarkDownPicture\mysql\innodb_cache.png)

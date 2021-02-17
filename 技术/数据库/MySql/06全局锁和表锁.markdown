@@ -1,0 +1,5 @@
+## 全局锁
+
+当你需要让整个库处于只读状态的时候，可以使用Flush tables with read lock (FTWRL)  
+
+执行万之后其他的

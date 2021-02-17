@@ -1,0 +1,428 @@
+## Mybatis
+
+### mybatis配置
+
+1. mybatis配置SqlMapConfig.xml，此文件作为mybatis的全局配置文件，配置了mybatis的运行环境等信息。mapper.xml文件即sql映射文件，文件中配置了操作数据库的sql语句。此文件需要在SqlMapConfig.xml中加载。
+
+2. 通过mybatis环境等配置信息构造SqlSessionFactory即会话工厂。
+
+3. 由会话工厂创建sqlSession即会话，操作数据库需要通过sqlSession进行。
+
+4. mybatis底层自定义了Executor执行器接口操作数据库，Executor接口有两个实现，一个是基本执行器、一个是缓存执行器。
+
+5. Mapped Statement也是mybatis一个底层封装对象，它包装了mybatis配置信息及sql映射信息等。mapper.xml文件中一个sql对应一个Mapped Statement对象，sql的id即是Mapped statement的id。
+
+6. Mapped Statement对sql执行输入参数进行定义，包括HashMap、基本类型、pojo，Executor通过Mapped Statement在执行sql前将输入的java对象映射至sql中，输入参数映射就是jdbc编程中对preparedStatement设置参数。
+
+7. Mapped Statement对sql执行输出结果进行定义，包括HashMap、基本类型、pojo，Executor通过Mapped Statement在执行sql后将输出结果映射至java对象中，输出结果映射过程相当于jdbc编程中对结果的解析处理过程。
+
+## 案例
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+    <!-- 和spring整合后 environments配置将废除-->
+    <environments default="development">
+        <environment id="development">
+        <!-- 使用jdbc事务管理,事务控制由mybatis管理-->
+            <transactionManager type="JDBC" />
+        <!-- 数据库连接池,由mybatis管理-->
+            <dataSource type="POOLED">
+                <property name="driver" value="com.mysql.jdbc.Driver" />
+                <property name="url" value="jdbc:mysql://localhost:3306/test?characterEncoding=utf-8" />
+                <property name="username" value="root" />
+                <property name="password" value="root" />
+            </dataSource>
+        </environment>
+    </environments>
+<!-- 加载映射文件 -->
+    <mappers>
+        <mapper resource="com/mybatis/mapping/User.xml"/>
+    </mappers>
+</configuration>
+```
+
+
+
+```java
+package com.mybatis.entity;
+
+import java.util.Date;
+
+/**
+ * @ClassName: User
+ * @Description: TODO(用户实体)
+ * @author lixiaoxi
+ * @date 2015-6-27 下午1:56:02
+ * 
+ */
+public class User {
+    // 属性名称和数据库字段名称保持一致
+    private Integer id;
+    // 姓名
+    private String username;
+    // 性别
+    private String sex;
+    // 地址
+    private String address;
+    // 生日
+    private Date birthday;
+
+    public Integer getId() {
+        return id;
+    }
+
+    public void setId(Integer id) {
+        this.id = id;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getSex() {
+        return sex;
+    }
+
+    public void setSex(String sex) {
+        this.sex = sex;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public Date getBirthday() {
+        return birthday;
+    }
+
+    public void setBirthday(Date birthday) {
+        this.birthday = birthday;
+    }
+
+    @Override
+    public String toString() {
+        return "User [id=" + id + ", username=" + username + ", sex=" + sex
+                + ", address=" + address + ", birthday=" + birthday + "]";
+    }
+
+}
+```
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 为这个mapper指定一个唯一的namespace，namespace的值习惯上设置成包名+sql映射文件名，这样就能够保证namespace的值是唯一的
+例如namespace="com.mybatis.mapping.User"就是com.mybatis.mapping(包名)+User(User.xml文件去除后缀)
+ -->
+ <!-- namespace命名空间,作用就是对sql进行分类化的管理,理解为sql隔离
+    注意:使用mapper代理开发时，namespace有特殊作用
+ -->
+<mapper namespace="com.mybatis.mapping.User">
+    <!-- 在映射文件中配置很多sql语句 -->
+    <!-- 需求：通过Id查询用户表的记录 -->
+    <!-- 通过SELECT执行数据库查询 
+        id:标识映射文件中的sql，称为statement的id;
+            将sql语句封装在mapperStatement的对象中，所以Id称为Statement的id;
+        parameterType:指定输入参数的类型,这里指定int型
+        #{}:表示一个占位符;
+        #{id}:其中Id表示接收输入的参数，参数名称就是Id,如果输入参数是简单类型，#{}中的参数名可以任意，可以是value或者其它名称;
+        resultType:指定sql输出结果所映射的java对象类型,select指定resultType表示将单条记录映射成java对象。
+    -->
+    <select id="findUserById" parameterType="int" resultType="com.mybatis.entity.User">
+        select username,DATE_FORMAT(birthday,'%Y-%m-%d')birthday,sex,address from t_user where id=#{id}
+    </select>
+    
+    <!-- 根据用户名称模糊查询用户信息,可能返回多条数据
+        resultType:指定的就是单条记录所映射的java类型;
+        ${}:表示拼接sql字符串，将接收到的参数内容不加任何修饰拼接在sql中.
+            使用${}拼接sql，可能会引起sql注入
+        ${value}:接收输入参数的内容，如果传入的是简单类型,${}中只能使用value
+     -->
+    <select id="findUserByName" parameterType="java.lang.String" resultType="com.mybatis.entity.User" >
+        select * from t_user where username LIKE '%${value}%'
+    </select>
+
+     <!-- 查询所有用户 -->
+    <select id="getUserList" resultType="com.mybatis.entity.User">
+        select username,birthday,sex,address from t_user 
+    </select>
+    
+    <!-- 添加用户 
+      parameterType:指定输入的参数类型是pojo(包括用户信息);
+      #{}中指定pojo的属性名称，接收到pojo对象的属性值    ,mybatis通过OGNL(类似struts2的OGNL)获取对象的属性值
+    -->
+    <insert id="insertUser" parameterType="com.mybatis.entity.User">
+       <!-- 
+              将insert插入的数据的主键返回到User对象中;
+           select last_insert_id():得到刚insert进去记录的主键值，只适用于自增主键;
+           keyProperty:将查询到的主键值，设置到parameterType指定的对象的那个属性
+           order:select last_insert_id()执行顺序，相对于insert语句来说它的执行顺序。
+           resultType:指定select last_insert_id()的结果类型;
+       -->
+       <selectKey keyProperty="id" order="AFTER" resultType="java.lang.Integer">
+           select last_insert_id()
+       </selectKey>
+       <!-- 
+            使用mysql的uuid()，实现非自增主键的返回。
+            执行过程:通过uuid()得到主键，将主键设置到user对象的Id的属性中，其次，在insert执行时，从user对象中取出Id属性值;
+          <selectKey keyProperty="id" order="BEFORE" resultType="java.lang.String">
+              select uuid()
+          </selectKey>
+          insert into t_user (id,username,birthday,sex,address) values(#{id},#{username},#{birthday},#{sex},#{address})
+       -->
+       insert into t_user(username,birthday,sex,address) values(#{username},#{birthday},#{sex},#{address})
+    </insert>
+    
+    <!-- 更新用户 
+        需要传入用户的Id和用户的更新信息
+        parameterType:指定User对象，包括Id和用户的更新信息,注意：Id是必须存在的
+        #{id}:从输入的User对象中获取Id的属性值
+    -->
+    <update id="updateUser" parameterType="com.mybatis.entity.User">
+        update t_user set username=#{username},birthday=#{birthday},sex=#{sex},address=#{address} 
+        where id=#{id}
+    </update>
+    
+    <!-- 删除用户 
+        根据ID删除用户,需要输入Id值
+    -->
+    <delete id="deleteUser" parameterType="java.lang.Integer">
+        delete from t_user where id=#{id}
+    </delete>
+</mapper>
+```
+
+```java
+package com.mybatis.test;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Date;
+import java.util.List;
+
+import org.apache.ibatis.io.Resources;
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.session.SqlSessionFactory;
+import org.apache.ibatis.session.SqlSessionFactoryBuilder;
+import org.junit.Test;
+
+import com.mybatis.entity.User;
+
+public class MybatisTest {
+    
+    // 根据Id查询用户信息，得到一条记录结果
+    @Test
+    public void findUserByIdTest(){
+        // mybatis的配置文件
+        String resource = "SqlMapConfig.xml";
+        InputStream inputStream = null;
+        SqlSession sqlSession = null;
+        try{
+            inputStream = Resources.getResourceAsStream(resource);
+             // 1.创建会话工场,传入mybatis的配置文件信息
+            SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
+            
+             // 2.通过工厂得到SqlSession
+            sqlSession = sqlSessionFactory.openSession();
+            
+            // 3.通过sqlSession操作数据库
+            // 第一个参数：映射文件中的statement的Id,等于namespace + "." + statement的id;
+            // 第二个参数:指定和映射文件中所匹配的parameterType类型的参数;
+            // sqlSession.selectOne结果是与映射文件所匹配的resultType类型的对象;
+            // selectOne：查询一条结果
+            User user = sqlSession.selectOne("com.mybatis.mapping.User.findUserById",1);
+            System.out.println(user.toString());
+        }catch(IOException e){
+            e.printStackTrace();
+        }finally{
+            if(sqlSession != null){
+                sqlSession.close();
+            }
+            if(inputStream != null){
+                try{
+                    inputStream.close();
+                }catch(IOException e){
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+    
+    // 根据姓名模糊查询用户信息，得到一条或多条记录结果
+    @Test
+    public void findUserByNameTest(){
+        // mybatis的配置文件
+        String resource = "SqlMapConfig.xml";
+        InputStream inputStream = null;
+        SqlSession sqlSession = null;
+        try{
+            inputStream = Resources.getResourceAsStream(resource);
+             // 1.创建会话工场,传入mybatis的配置文件信息
+            SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
+            
+             // 2.通过工厂得到SqlSession
+            sqlSession = sqlSessionFactory.openSession();
+            
+            // 3.通过sqlSession操作数据库
+            // 第一个参数：映射文件中的statement的Id,等于namespace + "." + statement的id;
+            // 第二个参数:指定和映射文件中所匹配的parameterType类型的参数;
+            // sqlSession.selectList结果是与映射文件所匹配的resultType类型的对象;
+            // list中的user和resultType类型一致
+            List<User> list = sqlSession.selectList("com.mybatis.mapping.User.findUserByName","小");
+            System.out.println(list);
+        }catch(IOException e){
+            e.printStackTrace();
+        }finally{
+            if(sqlSession != null){
+                sqlSession.close();
+            }
+            if(inputStream != null){
+                try{
+                    inputStream.close();
+                }catch(IOException e){
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+    
+    // 添加用户
+    @Test
+    public void insertUserTest(){
+        // mybatis的配置文件
+        String resource = "SqlMapConfig.xml";
+        InputStream inputStream = null;
+        SqlSession sqlSession = null;
+        try{
+            inputStream = Resources.getResourceAsStream(resource);
+             // 1.创建会话工场,传入mybatis的配置文件信息
+            SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
+            
+             // 2.通过工厂得到SqlSession
+            sqlSession = sqlSessionFactory.openSession();
+            //插入用户的对象
+            User user = new User();
+            user.setUsername("小红");
+            user.setSex("1");
+            user.setBirthday(new Date());
+            user.setAddress("北京");
+            // 3.通过sqlSession操作数据库
+            // 第一个参数：映射文件中的statement的Id,等于namespace + "." + statement的id;
+            // 第二个参数:指定和映射文件中所匹配的parameterType类型的参数;
+            sqlSession.insert("com.mybatis.mapping.User.insertUser",user);
+            // 执行提交事务
+            sqlSession.commit();
+            //项目中经常需要 获取新增的用户的主键
+            System.out.println(user.getId());
+        }catch(IOException e){
+            e.printStackTrace();
+        }finally{
+            if(sqlSession != null){
+                sqlSession.close();
+            }
+            if(inputStream != null){
+                try{
+                    inputStream.close();
+                }catch(IOException e){
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+    
+    // 根据Id更新用户信息
+    @Test
+    public void updateUserTest(){
+        // mybatis的配置文件
+        String resource = "SqlMapConfig.xml";
+        InputStream inputStream = null;
+        SqlSession sqlSession = null;
+        try{
+            inputStream = Resources.getResourceAsStream(resource);
+             // 1.创建会话工场,传入mybatis的配置文件信息
+            SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
+            
+             // 2.通过工厂得到SqlSession
+            sqlSession = sqlSessionFactory.openSession();
+            //更新用户的信息
+            User user = new User();
+            user.setId(2);
+            user.setUsername("小黑");
+            user.setSex("2");
+            user.setBirthday(new Date());
+            user.setAddress("上海");
+            // 3.通过sqlSession操作数据库
+            // 第一个参数：映射文件中的statement的Id,等于namespace + "." + statement的id;
+            // 第二个参数:指定和映射文件中所匹配的parameterType类型的参数;
+            sqlSession.update("com.mybatis.mapping.User.updateUser",user);
+            // 执行提交事务
+            sqlSession.commit();
+        }catch(IOException e){
+            e.printStackTrace();
+        }finally{
+            if(sqlSession != null){
+                sqlSession.close();
+            }
+            if(inputStream != null){
+                try{
+                    inputStream.close();
+                }catch(IOException e){
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+    
+    // 根据Id删除用户
+    @Test
+    public void deleteUserTest(){
+        // mybatis的配置文件
+        String resource = "SqlMapConfig.xml";
+        InputStream inputStream = null;
+        SqlSession sqlSession = null;
+        try{
+            inputStream = Resources.getResourceAsStream(resource);
+             // 1.创建会话工场,传入mybatis的配置文件信息
+            SqlSessionFactory sqlSessionFactory = new SqlSessionFactoryBuilder().build(inputStream);
+            
+             // 2.通过工厂得到SqlSession
+            sqlSession = sqlSessionFactory.openSession();
+
+            // 3.通过sqlSession操作数据库
+            // 第一个参数：映射文件中的statement的Id,等于namespace + "." + statement的id;
+            // 第二个参数:指定和映射文件中所匹配的parameterType类型的参数;
+            //传入Id，删除用户
+            sqlSession.delete("com.mybatis.mapping.User.deleteUser",6);
+            // 执行提交事务
+            sqlSession.commit();
+        }catch(IOException e){
+            e.printStackTrace();
+        }finally{
+            if(sqlSession != null){
+                sqlSession.close();
+            }
+            if(inputStream != null){
+                try{
+                    inputStream.close();
+                }catch(IOException e){
+                    e.printStackTrace();
+                }
+            }
+        }
+        
+    }
+}
+```
+

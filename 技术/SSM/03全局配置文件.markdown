@@ -1,0 +1,229 @@
+## 全局配置文件
+
+ 这一节主要来总结一下mybatis中的全局配置文件SqlMapConfig.xml在开发中的一些常用配置，首先看一下该全局配置文件中都有哪些可以配置的东西：
+
+| 配置内容          | 作用                  |
+| ----------------- | --------------------- |
+| `<properties>`    | 用来加载属性文件      |
+| `<settings>`      | 用来设置全局参数      |
+| `<typeAliases>`   | 用来设置类型的别名    |
+| `<typeHandlers>`  | 用来设置类型处理器    |
+| `<objectFactory>` | 用来设置对象工厂      |
+| `<plugins>`       | 用来设置插件          |
+| `<environments>`  | 用来设置mybatis的环境 |
+| `<mappers>`       | 用来配置映射文件      |
+
+   从前面的博文中可以看出，<environments>是用来配置mybatis的环境的，在和Spring整合前是由mybatis自己管理的，但是和Spring整合后，这些配置都将被废弃掉，<environments>部分在前面已经有提到过，这里就不再赘述了。然后objectFactory和plugins一般我们不用，所以在这里就不总结了，<typeHandlers>类型处理器是mybatis中用来完成jdbc类型和java类型之间转换的，mybatis默认支持的类型处理器基本够我们使用了，一般不需要自定义。这篇博文主要来总结一下剩下的几个配置的用法。
+
+**1、properties属性**
+
+作用：将数据连接单独配置在db.properties中，只需要在SqlMapConfig.xml中加载db.properties的属性值，在SqlMapConfig.xml中就不需要对数据库连接参数进行硬编码。数据库连接参数只配置在db.properties中，方便对参数进行统一管理，其它xml可以引用该db.properties。
+
+**db.properties的内容：**
+
+```
+jdbc.driver=com.mysql.jdbc.Driver
+jdbc.url=jdbc:mysql://localhost:3306/mybatis
+jdbc.username=root
+jdbc.password=root
+```
+
+**在SqlMapConfig.xml中加载db.properties**
+
+[![复制代码](https://common.cnblogs.com/images/copycode.gif)](javascript:void(0);)
+
+```
+<!-- 加载数据库文件db.properties -->
+<properties resource="db.properties">
+        <!-- properties中还可以配置一些属性名和属性值,此处的优先加载 -->
+        <!-- <property name="driver" value=""/> -->
+    </properties>
+    <!-- 和spring整合后 environments配置将废除-->
+    <environments default="development">
+        <environment id="development">
+        <!-- 使用jdbc事务管理,事务控制由mybatis管理-->
+            <transactionManager type="JDBC" />
+        <!-- 数据库连接池,由mybatis管理-->
+            <dataSource type="POOLED">
+                <property name="driver" value="${jdbc.driver}" />
+                <property name="url" value="${jdbc.url}" />
+                <property name="username" value="${jdbc.username}" />
+                <property name="password" value="${jdbc.password}" />
+            </dataSource>
+        </environment>
+    </environments>
+```
+
+[![复制代码](https://common.cnblogs.com/images/copycode.gif)](javascript:void(0);)
+
+**properties特性：**
+**注意：**
+  （1）在properties元素体内定义的属性优先读取。
+  （2）然后读取properties元素中resource或url加载的属性，它会覆盖已读取的同名属性。
+  （3）最后读取parameterType传递的属性，它会覆盖已读取的同名属性。
+**建议：**
+　（1）不要在properties元素体内添加任何属性值，只将属性值定义在properties文件中。
+  （2）在properties文件中定义属性名要有一定的特殊性，如xxxx.xxxx(jdbc.driver)。
+
+**2、settings全局参数设置**
+
+mybatis框架运行时可以调整一些运行参数。比如，开启二级缓存，开启延迟加载等等。全局参数会影响mybatis的运行行为。
+
+　　　　　　　　　　　　　　　　　　　　　　　　　　**mybatis-settings的配置属性以及描述**
+
+| setting(设置)             | Description(描述)                                            | valid　Values(验证值组)                                      | Default(默认值)                                              |
+| ------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| cacheEnabled              | 在全局范围内启用或禁用缓存配置 任何映射器在此配置下。        | true \| false                                                | TRUE                                                         |
+| lazyLoadingEnabled        | 在全局范围内启用或禁用延迟加载。禁用时，所有相关联的将热加载。 | true \| false                                                | TRUE                                                         |
+| aggressiveLazyLoading     | 启用时，有延迟加载属性的对象将被完全加载后调用懒惰的任何属性。否则，每一个属性是按需加载。 | true \| false                                                | TRUE                                                         |
+| multipleResultSetsEnabled | 允许或不允许从一个单独的语句（需要兼容的驱动程序）要返回多个结果集。 | true \| false                                                | TRUE                                                         |
+| useColumnLabel            | 使用列标签，而不是列名。在这方面，不同的驱动有不同的行为。参考驱动文档或测试两种方法来决定你的驱动程序的行为如何。 | true \| false                                                | TRUE                                                         |
+| useGeneratedKeys          | 允许JDBC支持生成的密钥。兼容的驱动程序是必需的。此设置强制生成的键被使用，如果设置为true，一些驱动会不兼容性，但仍然可以工作。 | true \| false                                                | FALSE                                                        |
+| autoMappingBehavior       | 指定MyBatis的应如何自动映射列到字段/属性。NONE自动映射。 PARTIAL只会自动映射结果没有嵌套结果映射定义里面。 FULL会自动映射的结果映射任何复杂的（包含嵌套或其他）。 | NONE,PARTIAL,FULL                                            | PARTIAL                                                      |
+| defaultExecutorType       | 配置默认执行人。SIMPLE执行人确实没有什么特别的。 REUSE执行器重用准备好的语句。 BATCH执行器重用语句和批处理更新。 | SIMPLE,REUSE,BATCH                                           | SIMPLE                                                       |
+| safeRowBoundsEnabled      | 允许使用嵌套的语句RowBounds。                                | true \| false                                                | FALSE                                                        |
+| mapUnderscoreToCamelCase  | 从经典的数据库列名A_COLUMN启用自动映射到骆驼标识的经典的Java属性名aColumn。 | true \| false                                                | FALSE                                                        |
+| localCacheScope           | MyBatis的使用本地缓存，以防止循环引用，并加快反复嵌套查询。默认情况下（SESSION）会话期间执行的所有查询缓存。如果localCacheScope=STATMENT本地会话将被用于语句的执行，只是没有将数据共享之间的两个不同的调用相同的SqlSession。 | SESSIONSTATEMENT                                             | SESSION                                                      |
+| dbcTypeForNull            | 指定为空值时，没有特定的JDBC类型的参数的JDBC类型。有些驱动需要指定列的JDBC类型，但其他像NULL，VARCHAR或OTHER的工作与通用值。 | JdbcType enumeration. Most common are: NULL, VARCHAR and OTHER | OTHER                                                        |
+| lazyLoadTriggerMethods    | 指定触发延迟加载的对象的方法。                               | A method name list separated by commas                       | equals,clone,hashCode,toString                               |
+| defaultScriptingLanguage  | 指定所使用的语言默认为动态SQL生成。                          | A type alias or fully qualified class name.                  | org.apache.ibatis.scripting.xmltags.XMLDynamicLanguageDriver |
+| callSettersOnNulls        | 指定如果setter方法或地图的put方法时，将调用检索到的值是null。它是有用的，当你依靠Map.keySet（）或null初始化。注意原语（如整型，布尔等）不会被设置为null。 | true \| false                                                | FALSE                                                        |
+| logPrefix                 | 指定的前缀字串，MyBatis将会增加记录器的名称。                | Any String                                                   | Not set                                                      |
+| logImpl                   | 指定MyBatis的日志实现使用。如果此设置是不存在的记录的实施将自动查找。 | SLF4J \| LOG4J \| LOG4J2 \| JDK_LOGGING \| COMMONS_LOGGING \| STDOUT_LOGGING \| NO_LOGGING | Not set                                                      |
+| proxyFactory              | 指定代理工具，MyBatis将会使用创建懒加载能力的对象。          | CGLIB \| JAVASSIST                                           | CGLIB                                                        |
+
+官方文档settings的例子：
+
+[![复制代码](https://common.cnblogs.com/images/copycode.gif)](javascript:void(0);)
+
+```
+<setting name="cacheEnabled" value="true"/>
+    <setting name="lazyLoadingEnabled" value="true"/>
+    <setting name="multipleResultSetsEnabled" value="true"/>
+    <setting name="useColumnLabel" value="true"/>
+    <setting name="useGeneratedKeys" value="false"/>
+    <setting name="autoMappingBehavior" value="PARTIAL"/>
+    <setting name="defaultExecutorType" value="SIMPLE"/>
+    <setting name="defaultStatementTimeout" value="25"/>
+    <setting name="safeRowBoundsEnabled" value="false"/>
+    <setting name="mapUnderscoreToCamelCase" value="false"/>
+    <setting name="localCacheScope" value="SESSION"/>
+    <setting name="jdbcTypeForNull" value="OTHER"/>
+    <setting name="lazyLoadTriggerMethods" value="equals,clone,hashCode,toString"/>
+</settings>
+```
+
+[![复制代码](https://common.cnblogs.com/images/copycode.gif)](javascript:void(0);)
+
+**3、typeAiases(别名)——重点掌握**
+
+   这是配置中的一个重点，我们知道，在mapper.xml中，定义很多的statement，statement需要parameterType指定输入参数的类型、需要resultType指定输出结果的映射类型。如果在指定类型时输入类型全路径，有时候会很长，不方便进行开发，那么我们就可以针对parameterType或resultType指定的类型定义一些别名，在mapper.xml中通过别名`<typeAliases>来`定义，方便开发。
+
+**3.1、Mybatis默认支持的别名**
+
+| **别名**   | **映射的类型** |
+| ---------- | -------------- |
+| _byte      | byte           |
+| _long      | long           |
+| _short     | short          |
+| _int       | int            |
+| _integer   | int            |
+| _double    | double         |
+| _float     | float          |
+| _boolean   | boolean        |
+| string     | String         |
+| byte       | Byte           |
+| long       | Long           |
+| short      | Short          |
+| int        | Integer        |
+| integer    | Integer        |
+| double     | Double         |
+| float      | Float          |
+| boolean    | Boolean        |
+| date       | Date           |
+| decimal    | BigDecimal     |
+| bigdecimal | BigDecimal     |
+
+
+
+**3.2、自定义别名**
+
+**3.2.1、单个别名定义（在SqlMapConfig.xml）**
+
+上面讲的是Mybatis默认支持的一些别名，但是针对pojo的需要我们就要自定义别名了，比如我们将自己定义的User对象取个别名为user，如下：
+
+```
+<!-- 别名定义：针对单个别名定义 type:类型的路径; alias:别名 -->
+<typeAliases><typeAlias type="com.mybatis.entity.User" alias="user"/></typeAliases>
+```
+
+UserMapper.xml中引用别名（输入参数或者输出结果为com.mybatis.entity.User时，就可以用user来代替了）：
+
+```
+<select id="findUserById" parameterType="int" resultType="user" >
+    　　select * from t_user where id=#{id}
+</select>
+```
+
+**3.2.2、批量定义别名（常用）**
+
+但是问题来了，如果工程中有很多pojo，那岂不是要一个一个定义……这得定义多少个啊，所以mybatis帮我们解决了这个问题，它提供了批量别名的定义，如下：
+
+[![复制代码](https://common.cnblogs.com/images/copycode.gif)](javascript:void(0);)
+
+```
+<!-- 批量别名的定义:
+        package:指定包名，mybatis会自动扫描包中的pojo类，自动定义别名，别名就是类名(首字母大写或小写都可以)
+ -->
+<typeAliases>
+      <package name="com.mybatis.entity"/>
+      <package name="其它包"/>
+</typeAliases>
+```
+
+[![复制代码](https://common.cnblogs.com/images/copycode.gif)](javascript:void(0);)
+
+这就爽了，如果进行了上面这样设置，那么所有放在com.mybatis.entity包下的pojo都可以不用定义了，直接使用类名就可以了，所以我们直接使用user即可。毫无疑问，开发中肯定使用这个批量的别名定义。
+
+**4、mappers（映射配置）**
+
+**4.1、通过resource加载单个映射文件**
+
+```
+<!-- 加载映射文件 -->
+    <mappers>
+    <!--通过resource方法一次加载一个映射文件  -->
+        <mapper resource="sqlmap/User.xml"/>
+        <mapper resource="mapper/UserMapper.xml"/>
+    </mappers>
+```
+
+**4.2、通过mapper接口加载单个映射文件**
+
+```
+<!-- 通过mapper接口加载单个映射配置文件
+遵循一定的规范：需要将mapper接口类名和mapper.xml映射文件名称保持一致，且在一个目录中；
+上边规范的前提是：使用的是mapper代理方法; -->
+
+<mapper class="com.mybatis.mapper.UserMapper"/> 
+```
+
+按照上边的规范，将mapper.java和mapper.xml放在一个目录，且同名。
+
+![img](https://images2015.cnblogs.com/blog/249993/201702/249993-20170207154216760-1798667900.png)
+
+**4.3、批量加载mapper（推荐使用）**
+
+但是还是有个弊端，就跟上面那个别名的配置一样，如果现在有好多个mapper怎么办，所以mybatis也给我们提供了批量加载方法：**我们只要指定mapper接口的包名，mybatis自动扫描包下面所有的mapper接口进行加载。**当然，还是要遵循上面的那个规范。配置如下：
+
+```
+<!-- 批量加载映射配置文件,mybatis自动扫描包下面的mapper接口进行加载
+    遵循一定的规范：需要将mapper接口类名和mapper.xml映射文件名称保持一致，且在一个目录中；
+        上边规范的前提是：使用的是mapper代理方法;
+  -->
+<package name="com.mybatis.mapper"/> 
+```
+
+这样com.mybatis.mapper包下的所有mapper.xml映射文件都可以加载了，这就更加简洁了。在开发中推荐使用这种批量加载映射文件的方法。
+
+关于SqlMapConfig.xml文件中的配置就总结这么多吧~
