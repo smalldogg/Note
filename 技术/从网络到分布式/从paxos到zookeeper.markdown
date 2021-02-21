@@ -72,7 +72,7 @@ zk中的所有数据都是存储在内存中
 #### 角色
 
 1. leader
-2. follower
+2. follower 尽量的少
 3. observer 不能参与选举的过程，但是可以读
 
 ### zab
