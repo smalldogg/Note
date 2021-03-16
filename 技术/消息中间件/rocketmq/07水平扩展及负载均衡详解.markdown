@@ -1,0 +1,194 @@
+[![img](https://img2020.cnblogs.com/blog/35695/202103/35695-20210314202757153-73268043.jpg
+
+# [RocketMQ之八：水平扩展及负载均衡详解]
+
+RocketMQ是一个分布式具有高度可扩展性的消息中间件。本文旨在探索在broker端，生产端，以及消费端是如何做到横向扩展以及负载均衡的。
+
+![img](https://img2018.cnblogs.com/blog/285763/201908/285763-20190827101755784-515500416.png)
+
+**NameServer集群**
+
+提供轻量级的服务发现和路由。每个NameServer 记录完整的路由信息，提供等效的读写服务，并支持快速存储扩展。
+
+就是一个注册中心，存储当前集群所有Brokers信息、Topic跟Broker的对应关系。
+
+Namesrv用于存储Topic、Broker关系信息，功能简单，稳定性高。多个Namesrv之间相互没有通信，单台Namesrv宕机不影响其他Namesrv与集群；即使整个Namesrv集群宕机，已经正常工作的Producer，Consumer，Broker仍然能正常工作，但新起的Producer,Consumer，Broker就无法工作。
+
+Namesrv压力不会太大，平时主要开销是在维持心跳和提供Topic-Broker的关系数据。但有一点需要注意，Broker向Namesr发心跳时，会带上当前自己所负责的所有Topic信息，如果Topic个数太多（万级别），会导致一次心跳中，就Topic的数据就几十M，网络情况差的话，网络传输失败，心跳失败，导致Namesrv误认为Broker心跳失败。
+
+**producer集群**
+
+生产者，产生消息的实例，拥有相同Producer Group 的Producer 组成一个集群。
+
+Producer与Name Server集群中的其中一个节点（随机选择）建立长连接，定期从Name Server取Topic路由信息，并向提供Topic服务的Master建立长连接，且定时向Master发送心跳。Producer完全无状态，可集群部署。
+
+Producer Group
+
+用来表示一个发送消息应用，一个Producer Group下包含多个Producer实例，可以是多台机器，也可以是一台机器的多个进程，或者一个进程的多个Producer对象。一个Producer Group可以发送多个Topic消息，Producer Group作用如下：
+
+- 标识一类Producer
+- 可以通过运维工具查询这个发送消息应用下有多个Producer实例
+- 发送分布式事务消息时，如果Producer中途意外宕机，Broker会主动回调Producer Group内的任意一台机器来确认事务状态。
+
+**consumer集群**
+
+消息消费者，简单来说，消费MQ 上的消息的应用程序就是消费者，至于消息是否进行逻辑处理，还是直接存储到数据库等取决于业务需要。拥有相同Consumer Group 的Consumer 组成一个集群。
+
+Consumer与Name Server集群中的其中一个节点（随机选择）建立长连接，定期从Name Server取Topic路由信息，并向提供Topic服务的Master、Slave建立长连接，且定时向Master、Slave发送心跳。Consumer既可以从Master订阅消息，也可以从Slave订阅消息，订阅规则由Broker配置决定。
+
+Consumer Group
+
+用来表示一个消费消息应用，一个Consumer Group下包含多个Consumer实例，可以是多台机器，也可以是多个进程，或者是一个进程的多个Consumer对象。一个Consumer Group下的多个Consumer以均摊方式消费消息，如果设置为广播方式，那么这个Consumer Group下的每个实例都消费全量数据。
+
+**broker集群**
+
+通过提供轻量级的Topic 和Queue 机制来处理消息存储,同时支持推（push）和拉（pull）模式以及主从结构的容错机制。
+
+集群最核心模块，主要负责Topic消息存储、管理和分发等功能。
+
+单个Broker跟所有Namesrv保持心跳请求，心跳间隔为30秒，心跳请求中包括当前Broker所有的Topic信息。Namesrv会反查Broer的心跳信息，如果某个Broker在2分钟之内都没有心跳，则认为该Broker下线，调整Topic跟Broker的对应关系。但此时Namesrv不会主动通知Producer、Consumer有Broker宕机。
+
+Broker部署相对复杂，Broker分为Master与Slave，一个Master可以对应多个Slave，但是一个Slave只能对应一个Master，Master与Slave的对应关系通过指定相同的BrokerName，不同的BrokerId来定义，BrokerId为0表示Master，非0表示Slave。Master也可以部署多个。每个Broker与Name Server集群中的所有节点建立长连接，定时注册Topic信息到所有Name Server。
+
+# 一、Broker端水平扩展
+
+### Broker负载均衡
+
+Broker是以group为单位提供服务。一个group里面分master和slave,master和slave存储的数据一样，slave从master同步数据（同步双写或异步复制看配置）。
+
+通过nameserver暴露给客户端后，只是客户端关心（注册或发送）一个个的topic路由信息。路由信息中会细化为message queue的路由信息。而message queue会分布在不同的broker group。所以对于客户端来说，分布在不同broker group的message queue为成为一个服务集群，但客户端会把请求分摊到不同的queue。
+
+而由于压力分摊到了不同的queue,不同的queue实际上分布在不同的Broker group，也就是说压力会分摊到不同的broker进程，这样消息的存储和转发均起到了负载均衡的作用。
+
+Broker一旦需要横向扩展，只需要增加broker group，然后把对应的topic建上，客户端的message queue集合即会变大，这样对于broker的负载则由更多的broker group来进行分担。
+
+并且由于每个group下面的topic的配置都是独立的，也就说可以让group1下面的那个topic的queue数量是4，其他group下的topic queue数量是2，这样group1则得到更大的负载。
+
+### commit log
+
+虽然每个topic下面有很多message queue，但是message queue本身并不存储消息。真正的消息存储会写在CommitLog的文件，message queue只是存储CommitLog中对应的位置信息，方便通过message queue找到对应存储在CommitLog的消息。
+
+不同的topic，message queue都是写到相同的CommitLog 文件，也就是说CommitLog完全的顺序写。
+
+具体如下图：
+
+![img](https://img2018.cnblogs.com/blog/285763/201908/285763-20190826181833985-565889226.jpg)
+
+## 二、Producer负载均衡
+
+Producer端，每个实例在发消息的时候，默认会-轮询（调度方式）所有的message queue发送，以达到让消息平均落在不同的queue上。而由于queue可以散落在不同的broker，所以消息就发送到不同的broker下，如下图：
+
+![img](https://img2018.cnblogs.com/blog/285763/201908/285763-20190826181901095-1545808012.jpg)
+
+Producer的负载均衡由MQFaultStratage.selectOneMessageQueue()实现，详细的代码见《[RocketMQ之九：RocketMQ消息发送流程解读](https://www.cnblogs.com/duanxz/p/4707107.html)》的第（3.2.2 选择消息发送的队列）章节。
+
+MQFaultStratage这个类是MQ负载均衡的核心类--源码见《[RocketMQ之九：RocketMQ消息发送流程解读](https://www.cnblogs.com/duanxz/p/4707107.html)》
+
+这个类描述了MQ负载均衡的策略
+
+如何选择一个broker达到负载均衡
+
+1. 尽量不要选择刚刚选择过的broker
+2. 不要选择延迟容错内的broker
+
+**随机选择broker--的源码：**
+
+![img](https://img2018.cnblogs.com/blog/285763/201908/285763-20190827162413467-773346974.png)
+
+producer每次在使用broker的时候会记录这次使用的是哪个broker；下次在选取broker的时候主动排除这个broker；
+
+• 在未推送任何消息时，producer中的mq为空，此时lastBrokerName也为空；
+
+• 选择broker是负载均衡的关键，基于方法selectOneMessageQueue(),这个方法会随机选择一个broker；
+
+**避开上次选取的broker--的源码：**
+
+![img](https://img2018.cnblogs.com/blog/285763/201908/285763-20190827162440641-544175616.png)
+
+**延迟容错下选择broker--的源码：**
+
+![img](https://img2018.cnblogs.com/blog/285763/201908/285763-20190827162459629-49194266.png)
+
+遍历所有broker直至找到一个broker可用（不在延迟容错里或已经可以从延迟容错里去除）；如果所有broker都不可用则随机选取一个；
+
+## 三、Consumer负载均衡
+
+### 集群模式
+
+在集群消费模式下，每条消息只需要投递到订阅这个topic的Consumer Group下的一个实例即可。RocketMQ采用主动拉取的方式拉取并消费消息，在拉取的时候需要明确指定拉取哪一条message queue。
+
+而每当实例的数量有变更，都会触发一次所有实例的负载均衡，这时候会按照queue的数量和实例的数量平均分配queue给每个实例。
+
+默认的分配算法有6种：
+
+1. 分页模式(随机分配模式)
+2. 手动配置模式
+3. 指定机房模式
+4. 就近机房模式
+5. 统一哈希模式
+6. 环型模式
+
+ 
+
+1、AllocateMessageQueueAveragely算法-分页模式(随机分配模式)
+
+平均分配算法
+   MessageQueue列表是topic下可以拉去消息的队列，消费客户端是订阅topic的消费者，当消息队列个数小于可消费客户端时，消息队列与客户端对应情况如左侧图；当消息队列个数大于可消费客户端时，消息队列与客户端对应情况如右侧图。
+
+![img](https://img2018.cnblogs.com/blog/285763/201908/285763-20190828160838856-664779038.png)
+
+ 
+
+
+2、AllocateMessageQueueAveragelyByCircle算法
+
+也是平均分摊每一条queue，只是以环状轮流分queue的形式，如下图：
+
+当消息队列个数小于可消费客户端时，消息队列与客户端对应情况如左侧图；当消息队列个数大于可消费客户端时，消息队列与客户端对应情况如右侧图：
+
+![img](https://img2018.cnblogs.com/blog/285763/201908/285763-20190828160748879-1334161827.png)
+3、AllocateMachineRoomNearby算法--就近机房模式
+
+同机房分配策略，首先统计消费者与broker所在机房，保证broker中的消息优先被同机房的消费者消费，如果机房中没有消费者，则有其他机房消费者消费。实际的队列分配（同机房或跨机房）可以是指定其他算法。假设有三个机房，实际负载策略使用算法1，机房1和机房3中存在消费者，机房2没有消费者。机房1、机房3中的队列会分配给各自机房中的消费者，机房2的队列会被消费者平均分配。
+
+ ![img](https://img2018.cnblogs.com/blog/285763/201908/285763-20190828161005202-2079598176.png)
+4、AllocateMessageQueueByMachineRoom算法--指定机房模式
+
+只消费特定broker中的消息，如下图所示，第一张图是消费者小于队列数情况，第二张图是消费者多余队列数情况。假设有三个机房，配置机房三不在消费者的服务范围内，则实际消费对应关系如下两图所示。
+
+ ![img](https://img2018.cnblogs.com/blog/285763/201908/285763-20190828161245239-1599359148.png)
+
+![img](https://img2018.cnblogs.com/blog/285763/201908/285763-20190828161350958-621131816.png)
+
+ 
+
+
+5、AllocateMessageQueueByConfig算法--手动配置模式
+
+ 该算法比较简单，在客户端直接配置可消费的messageQueueList，指定规定的消息队列
+
+ 
+6、AllocateMessageQueueConsistentHash算法-统一哈希模式
+  使用一致性哈希算法进行负载，每次负载都会重新创建一致性hash路由表，获取本地客户端负责的所有队列信息。RocketMQ默认的hash算法为MD5。假设有4个客户端的clientId和两个消息队列mq1，mq2，，通过hash后分布在hash环的不同位置，按照一致性hash的顺时针查找原则，mq1被client2消费，mq2被client3消费。
+![img](https://img2018.cnblogs.com/blog/285763/201908/285763-20190828161556060-116851052.png)
+
+ 
+
+需要注意的是，集群模式下，queue都是只允许分配只一个实例，这是由于如果多个实例同时消费一个queue的消息，由于拉取哪些消息是consumer主动控制的，那样会导致同一个消息在不同的实例下被消费多次，所以算法上都是一个queue只分给一个consumer实例，一个consumer实例可以允许同时分到不同的queue。
+
+通过增加consumer实例去分摊queue的消费，可以起到水平扩展的消费能力的作用。而有实例下线的时候，会重新触发负载均衡，这时候原来分配到的queue将分配到其他实例上继续消费。
+
+但是如果consumer实例的数量比message queue的总数量还多的话，多出来的consumer实例将无法分到queue，也就无法消费到消息，也就无法起到分摊负载的作用了。所以需要控制让queue的总数量大于等于consumer的数量。
+
+### 广播模式
+
+由于广播模式下要求一条消息需要投递到一个消费组下面所有的消费者实例，所以也就没有消息被分摊消费的说法。
+
+在实现上，其中一个不同就是在consumer分配queue的时候，会所有consumer都分到所有的queue。
+
+![img](https://img2018.cnblogs.com/blog/285763/201908/285763-20190826182106261-564081499.jpg)
+
+ 
+
+ 
+
