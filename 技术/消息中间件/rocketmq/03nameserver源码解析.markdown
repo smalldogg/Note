@@ -1,5 +1,17 @@
 # RocketMQ之三：nameserver源码解析
 
+## NameServer
+
+namesrv主要的工作是维持心跳，不保证数据的一致性，因为namesrv是无状态的
+
+数据一致性由broker来维持
+
+### 对比zk
+
+
+
+
+
 # NameServer代码结构
 
 如下图：
@@ -58,7 +70,7 @@ boolean initResult = controller.initialize();
 
 ![img](https://upload-images.jianshu.io/upload_images/10845135-240832617019fcc2.png)
 
-上图可以看出为了避免线程安全问题，使用了lock锁。注册过程就是维护RouteInfoManager中的数据结构。
+上图可以看出为了避免线程安全问题，使用了lock锁。注册过程就是维护RouteInfoManager（管理消息路由）中的数据结构。
 
 注册broker成功后，就是通过心跳来检测broker的生命周期，维护broker状态信息。
 
@@ -72,7 +84,5 @@ boolean initResult = controller.initialize();
 
 ![img](https://upload-images.jianshu.io/upload_images/10845135-48ec32c477fc42d7.png)
 
-图一为初始化调度线程池（单线程），图二初始化后启动调度线程，图三可以看出，调度线程定时的扫描brokerLiveTable里面broker的状态信息，发现最近的更新时间与当前时间相差大于BROKER_CHANNEL_EXPIRED_TIME =1000 *60 *2，即两分钟的话，就删除当前broker，从图四可以看出，删除broker就是删除RouteInfoManager中维护的几个hashmap中关于broker的信息。
-
-NameServer就解析到这里，如果感兴趣，大家不妨看下源码，自己跟下。
+图一为初始化调度线程池（单线程），图二初始化后启动调度线程，图三可以看出，调度线程定时的扫描brokerLiveTable里面broker的状态信息，发现最近的更新时间与当前时间相差大于BROKER_CHANNEL_EXPIRED_TIME =1000 *60 *2，即两分钟的话，就删除当前broker，从图四可以看出，删除broker就是删除RouteInfoManager中维护的几个hashmap中关于broker的信息
 

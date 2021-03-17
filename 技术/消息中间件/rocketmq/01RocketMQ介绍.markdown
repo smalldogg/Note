@@ -29,11 +29,11 @@ RocketMQ主要由 Producer、Broker、Consumer 三部分组成，其中Producer 
 
 1. **Name Server**: 名称服务充当路由消息的提供者
 
-   。是一个几乎无状态节点，可集群部署，节点之间无任何信息同步。在消息队列 RocketMQ 中提供命名服务，更新和发现 Broker 服务。
+   是一个几乎无状态节点，可集群部署，节点之间无任何信息同步。在消息队列 RocketMQ 中提供命名服务，更新和发现 Broker 服务。
 
-   ```
-             NameServer
-   ```
+   为什么不使用zk呢？
+
+    **NameServer**
 
    即名称服务，两个功能：
 
@@ -43,12 +43,10 @@ RocketMQ主要由 Producer、Broker、Consumer 三部分组成，其中Producer 
 
 2. **Broker**：消息中转角色，负责存储消息，转发消息
 
-   。可以理解为消息队列服务器，提供了消息的接收、存储、拉取和转发服务。
+   可以理解为消息队列服务器，提供了消息的接收、存储、拉取和转发服务。
 
-   ```
-   broker
-   ```
-
+   **broker**
+   
    是RocketMQ的核心，它是不能挂的，
 
    所以需要保证`broker`的高可用。
@@ -57,7 +55,7 @@ RocketMQ主要由 Producer、Broker、Consumer 三部分组成，其中Producer 
 
    　　　　Master与Slave的对应关系通过指定相同的BrokerName，不同的BrokerId来定义，BrokerId为0表示Master，非0表示Slave。Master也可以部署多个。
 
-   　　　　每个Broker与Name Server集群中的所有节点建立长连接，定时注册Topic信息到所有Name Server。Broker 启动后需要完成一次将自己注册至 Name Server 的操作；随后每隔 30s 定期向 Name Server 上报 Topic 路由信息。
+   　　　　每个Broker与Name Server集群中的所有节点建立**长连接**，定时注册Topic信息到所有Name Server。Broker 启动后需要完成一次将自己注册至 Name Server 的操作；随后每隔 30s 定期向 Name Server 上报 Topic 路由信息。
 
 3. **生产者**：与 Name Server 集群中的其中一个节点（随机）建立长链接（Keep-alive），定期从 Name Server 读取 Topic 路由信息，并向提供 Topic 服务的 Master Broker 建立长链接，且定时向 Master Broker 发送心跳。
 
@@ -69,9 +67,12 @@ RocketMQ主要由 Producer、Broker、Consumer 三部分组成，其中Producer 
 
 RocketMQ的Topic/Queue和JMS中的Topic/Queue概念有一定的差异，JMS中所有消费者都会消费一个Topic消息的副本，而Queue中消息只会被一个消费者消费；但到了**RocketMQ中Topic只代表普通的消息队列，而Queue是组成Topic的更小单元**。
 
+这里rocketmq只有点对点的模型。但是对外显示的是topic
+
 - **topic：**表示消息的第一级类型，比如一个电商系统的消息可以分为：交易消息、物流消息...... 一条消息必须有一个`Topic。`
 - **Queue**：主题被划分为一个或多个子主题，称为“message queues”。一个`topic`下，我们可以设置多个`queue(消息队列)`。当我们发送消息时，需要要指定该消息的`topic`。RocketMQ会轮询该`topic`下的所有队列，将消息发送出去。
   **定义：Queue是Topic在一个Broker上的分片，在分片基础上再等分为若干份（可指定份数）后的其中一份，是负载均衡过程中资源分配的基本单元。**
+- 因为消息是分片的，所以很容易做到扩展
 
 集群消费模式下一个消费者只消费该Topic中部分Queue中的消息，当一个消费者开启广播模式时则会消费该Topic下所有Queue中的消息。
 
@@ -140,6 +141,8 @@ Queue中具体的存储单元结构如下图，最后面的8个Byte存储Tag信�
 ![img](https://img2018.cnblogs.com/blog/285763/201908/285763-20190823163246804-938503784.png)
 
 我们知道，数据分片的主要目的是突破单点的资源（网络带宽，CPU，内存或文件存储）限制从而实现水平扩展。RocketMQ 在进行Topic分片以后，已经达到水平扩展的目的了，为什么还需要进一步切分为Queue呢？
+
+这里消费者是以queue为单位进行消费的，所以为了consumer的负载，我们有了queue的概念
 
 解答这个问题还需要从负载均衡说起。以消息消费为例，借用Rocket MQ官方文档中的Consumer负载均衡示意图来说明：
 
