@@ -6,7 +6,7 @@
 
 ![img](https://img2018.cnblogs.com/blog/285763/201908/285763-20190823175456557-1759238231.png)
 
-1、Commit log存储消息实体。顺序写，随机读。
+1、Commit log存储消息实体。特点**顺序写，随机读**
 2、Message queue存储消息的偏移量。读消息先读message queue，根据偏移量到commit log读消息本身。
 3、索引队列用来存储消息的索引key
 使用mmap方式减少内存拷贝，提高读取性能。具体实现：FileChannel.map(RandomAccessFile)
@@ -37,7 +37,7 @@ CommitLog以物理文件的方式存放，每台Broker上的CommitLog被本机�
 
 [ 如何保证CommitLog和ConsumeQueue的一致性？ ]
 
-CommitLog里存储了Consume Queues、Message Queue、Tag等所有信息，即使ConsumeQueue丢失，也可以通过commitLog完全恢复出来。
+**CommitLog里存储了Consume Queues、Message Queue、Tag等所有信息，即使ConsumeQueue丢失，也可以通过commitLog完全恢复出来**
 
  
 
@@ -102,7 +102,7 @@ Consume Queue文件组织，如图所示：
 
 Consume Queue文件组织示意图
 
-1. 根据`topic`和`queueId`来组织文件，图中TopicA有两个队列0,1，那么TopicA和QueueId=0组成一个ConsumeQueue，TopicA和QueueId=1组成另一个ConsumeQueue。
+1. **根据`topic`和`queueId`来组织文件**，图中TopicA有两个队列0,1，那么TopicA和QueueId=0组成一个ConsumeQueue，TopicA和QueueId=1组成另一个ConsumeQueue。
 2. 按照消费端的`GroupName`来分组重试队列，如果消费端消费失败，消息将被发往重试队列中，比如图中的`%RETRY%ConsumerGroupA`。
 3. 按照消费端的`GroupName`来分组死信队列，如果消费端消费失败，并重试指定次数后，仍然失败，则发往死信队列，比如图中的`%DLQ%ConsumerGroupA`。
 

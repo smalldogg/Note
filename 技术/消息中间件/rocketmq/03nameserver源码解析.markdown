@@ -86,3 +86,18 @@ boolean initResult = controller.initialize();
 
 图一为初始化调度线程池（单线程），图二初始化后启动调度线程，图三可以看出，调度线程定时的扫描brokerLiveTable里面broker的状态信息，发现最近的更新时间与当前时间相差大于BROKER_CHANNEL_EXPIRED_TIME =1000 *60 *2，即两分钟的话，就删除当前broker，从图四可以看出，删除broker就是删除RouteInfoManager中维护的几个hashmap中关于broker的信息
 
+
+
+
+
+## nameserver 总结
+
+集群信息存储
+
+clusterAddrTable
+
+TopicRouteData是发送的具体的内容
+
+![](D:\MyWork\MarkDownPicture\rocketmq\TopicRouteData.png)
+
+这里面包含了具体的消息
