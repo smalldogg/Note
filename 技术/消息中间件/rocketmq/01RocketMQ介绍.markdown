@@ -17,13 +17,13 @@ RocketMQ 是阿里巴巴开源的分布式消息中间件。支持事务消息�
 
 ## 1.1、RocketMQ的核心概念
 
-　　消息队列 RocketMQ 在任何一个环境都是可扩展的，生产者必须是一个集群，消息服务器必须是一个集群，消费者也同样。集群级别的高可用，是消息队列 RocketMQ 跟其他的消息服务器的主要区别，消息生产者发送一条消息到消息服务器，消息服务器会随机的选择一个消费者，只要这个消费者消费成功就认为是成功了。
+　　消息队列 RocketMQ 在任何一个环境都是可扩展的，生产者必须是一个集群，消息服务器必须是一个集群，消费者也同样。集群级别的高可用，是消息队列 RocketMQ 跟其他的消息服务器的主要区别，消息生产者发送一条消息到消息服务器，**消息服务器会随机的选择一个消费者**，只要这个消费者消费成功就认为是成功了。
 
 **注意：**文中所提及的消息队列 RocketMQ 的服务端或者服务器包含 Name Server、Broker 等。服务端不等同于 Broker。
 
  ![img](https://img2018.cnblogs.com/blog/285763/201908/285763-20190821175219196-1211062486.png)
 
-RocketMQ主要由 Producer、Broker、Consumer 三部分组成，其中Producer 负责生产消息，Consumer 负责消费消息，Broker 负责存储消息。Broker 在实际部署过程中对应一台服务器，每个 Broker 可以存储多个Topic的消息，每个Topic的消息也可以分片存储于不同的 Broker。Message Queue 用于存储消息的物理地址，每个Topic中的消息地址存储于多个 Message Queue 中。ConsumerGroup 由多个Consumer 实例构成。
+RocketMQ主要由 Producer、Broker、Consumer 三部分组成，其中Producer 负责生产消息，Consumer 负责消费消息，Broker 负责存储消息。Broker 在实际部署过程中对应一台服务器，每个 Broker 可以存储多个Topic的消息，每个Topic的消息也可以分片存储于不同的 Broker。Message Queue **用于存储消息的物理地址（offset）**，每个Topic中的消息地址存储于多个 Message Queue 中。ConsumerGroup 由多个Consumer 实例构成。
 
 图中所涉及到的概念如下所述：
 

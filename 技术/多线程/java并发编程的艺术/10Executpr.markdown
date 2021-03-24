@@ -15,7 +15,7 @@
 
 
 
-## FixedThreadPool详解  
+## FixedThreadPool
 
 ```java
 public static ExecutorService newFixedThreadPool(int nThreads) {
@@ -26,3 +26,40 @@ new LinkedBlockingQueue<Runnable>());
 ```
 
 FixedThreadPool的corePoolSize和maximumPoolSize都被设置为创建FixedThreadPool时指定的参数nThreads。当线程池中的线程数大于corePoolSize时，keepAliveTime为多余的空闲线程等待新任务的最长时间，超过这个时间后多余的线程将被终止。这里把keepAliveTime设置为0L，意味着多余的空闲线程会被立即终止。 
+
+**问题**
+
+1）当线程池中的线程数达到corePoolSize后，新任务将在无界队列中等待，因此线程池中
+的线程数不会超过corePoolSize。
+2）由于1，使用无界队列时maximumPoolSize将是一个无效参数。
+3）由于1和2，使用无界队列时keepAliveTime将是一个无效参数。
+4）由于使用无界队列，运行中的FixedThreadPool（未执行方法shutdown()或
+shutdownNow()）不会拒绝任务（不会调用RejectedExecutionHandler.rejectedExecution方法）。  
+
+
+
+## SingleThreadExecutor  
+
+```java
+public static ExecutorService newSingleThreadExecutor() {
+return new FinalizableDelegatedExecutorService
+(new ThreadPoolExecutor(1, 1,
+0L, TimeUnit.MILLISECONDS,
+new LinkedBlockingQueue<Runnable>()));
+}
+```
+
+##  CachedThreadPool  
+
+```java
+public static ExecutorService newCachedThreadPool() {
+return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+60L, TimeUnit.SECONDS,
+new SynchronousQueue<Runnable>());
+}
+```
+
+CachedThreadPool的corePoolSize被设置为0，即corePool为空；maximumPoolSize被设置为
+Integer.MAX_VALUE，即maximumPool是无界的。这里把keepAliveTime设置为60L，意味着
+CachedThreadPool中的空闲线程等待新任务的最长时间为60秒，空闲线程超过60秒后将会被
+终止。  
