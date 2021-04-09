@@ -1,0 +1,191 @@
+1.BeanFactory和ApplicationContext有什么区别？
+beanfactory是spring最底层的接口，负责bean的生命周期
+applicationcontext是相对于开发人员来说的
+2.spring的源码分析
+首先先有一个xml或者注解通过beandefinationreader定义对象信息，然后再通过beanfactorypostprocessor后置处理器处理beanfactory,
+之后再通过beanfactory由反射的方法实例化对象，对象通过setter进行初始化，然后调用beanpostprocessor方法处理bean对象
+，调用自定义的方法，在调用beanpostprocessor方法，最后通过context.getbean获取到完整的对象
+Spring上下文中的Bean生命周期也类似，如下：
+ 
+（1）实例化一个Bean－－也就是我们常说的new；
+ 
+（2）按照Spring上下文对实例化的Bean进行配置－－也就是IOC注入；
+ 
+（3）如果这个Bean已经实现了BeanNameAware接口，会调用它实现的setBeanName(S0tring)方法，此处传递的就是Spring配置文件中Bean的id值；
+ 
+（4）如果这个Bean已经实现了BeanFactoryAware接口，会调用它实现的setBeanFactory(setBeanFactory(BeanFactory)传递的是Spring工厂自身（可以用这个方式来获取其它Bean，只需在Spring配置文件中配置一个普通的Bean就可以）；
+ 
+（5）如果这个Bean已经实现了ApplicationContextAware接口，会调用setApplicationContext(ApplicationContext)方法，传入Spring上下文（同样这个方式也可以实现步骤4的内容，但比4更好，因为ApplicationContext是BeanFactory的子接口，有更多的实现方法）；
+ 
+（6）如果这个Bean关联了BeanPostProcessor接口，将会调用postProcessBeforeInitialization(Object obj, String s)方法，BeanPostProcessor经常被用作是Bean内容的更改，并且由于这个是在Bean初始化结束时调用那个的方法，也可以被应用于内存或缓存技术；
+ 
+（7）如果Bean在Spring配置文件中配置了init-method属性会自动调用其配置的初始化方法。
+ 
+（8）如果这个Bean关联了BeanPostProcessor接口，将会调用postProcessAfterInitialization(Object obj, String s)方法、；
+ 
+注：以上工作完成以后就可以应用这个Bean了，那这个Bean是一个Singleton的，所以一般情况下我们调用同一个id的Bean会是在内容地址相同的实例，当然在Spring配置文件中也可以配置非Singleton。
+ 
+（9）当Bean不再需要时，会经过清理阶段，如果Bean实现了DisposableBean这个接口，会调用那个其实现的destroy()方法；
+ 
+（10）最后，如果这个Bean的Spring配置中配置了destroy-method属性，会自动调用其配置的销毁方法。
+ 
+另外我们这里描述的是应用Spring上下文Bean的生命周期，如果应用Spring的工厂也就是BeanFactory的话去掉第5步就Ok了。
+ 
+1. Zookeeper，nacos，eureka的区别
+Zookeeper满足cp，eureka满足ap,nacos满足ap+cp
+P:分区容错性：当数据在一定时间范围内不能达到数据一致性，就意味着发生了分区的情况，就必须要在c和a之间选择一个
+2. Rdb和aof的区别
+Rdb:是子线程fork数据每隔一段时间复制数据
+优点：节省空间，恢复快，直接用dump文件覆盖即可
+缺点：可能会有一段时间的数据丢失，fork会影响磁盘存储
+Aof:把操作工程同步到日志文件中，默认不开启
+优点：丢失数据错误率低，可以处理误操作
+缺点：浪费空间，恢复要慢一点，可能会造成不可修复的bug
+3. Feign和gateway的增强有没有接触过
+ 
+4. 有没有用过hashcode，为什么要用到hashcode
+Hashcode是以hash算法进行计算的码值，这个可能会有hash冲突，之所以引入hashcode是因为如果判断一个对象是否存在的时候，一直使用equals的话，会造成检索速度下降，不利于进行数据的处理，而如果引入hashcode，就可以先判断hashcode是否是相等的，如果不相等，就可以直接添加数据，如果相等，在判断equals是否一样，这样可以提高效率
+5. List添加一个数据的底层
+Arraylist是一个动态数组，默认长度是10，当要添加的数据超过了当前数组的长度，就会创建一个原来数组1.5倍的新数组，并把原来的数据复制到新数组，当前数组的内存被释放掉。Arraylist在添加新元素的时候会添加到最前面，后面的数据后移，删除也是，后面的数据要都前移，所以使用arraylist增删效率低，但是arraylist是有序的，所以查询效率高
+Linkedlist是使用双向链表的数据结构，因此他增删很轻松，但是查询需要从头到尾顺寻查询，所以查询效率低
+6. Arraylist是深复制还是浅复制，是使用for循环进行遍历的吗
+7. Concurrenthashmap的分段式加锁机制
+ 
+8. Kafka,activemq,rabbitmq,rocketmq的区别
+Kafka:使用于大量日志定位分析，性能（吞吐量，tps）高于rabbitmq
+Rabbitmq：比kafka更加成熟，高可用，高吞吐，高可靠，支持集群，elang开发，源码不好理解
+Rocketmq：阿里云开发，使用java编写，源码易读，高吞吐，高并发，支持分布式事务
+Activemq:几个月发一次版，主要维护Apollo，支持jms规范，但是性能比较差，不支持高并发
+消息中间件的选择：
+中小型：小公司要选用性能比较全面的中间件，则不选择kafka(基本主要用来收集日志信息)一般选用rabbitmq；大公司一般选用rocketmq和kafka，rocketmq源码易于理解，维护起来人力成本也充足
+9. Rocketmq底层原理
+10. Mysql优化都会做那些
+(1) 使用join代替子查询，因为子查询是需要临时建表来查询的
+(2) 使用事务完成业务操作上的一系列操作
+(3) 使用索引，对一些经常查询的字段建立索引
+① 选择过滤性好的建立索引
+② 尽量使用覆盖索引
+③ OrderBy,groupBy都要使用limit才能用到索引
+(4) join连接时候保证left join的时候左小右大的原则
+11. Mysql和redis的一致性如何保持
+一般来讲只能在业务层面进行优化：查询先从redis中查询，redis中没有数据，从mysql中查，然后保存到redis中；修改时mysql修改完后要及时更新和修改redis的数据，以此来保证数据的一致性
+12. Hashmap扩容底层原理，为什么要折磨做？Concurrenthashmap是如何实现的，为什么是线程安全的
+13. Mysql聚簇索引和普通索引的区别，
+(1) name+id是如何在索引中查找的,
+(2) mysql中最佳左前缀法则，
+(3) mysql中如果update误操作，如何让数据恢复，
+第一种：把update的返回时间给运维，运维会重新创建一张表，然后通过sql语句将数据复制过来，但是会造成误操作到恢复这段时间的数据无法恢复，除非让运维先将表锁定
+第二种：根据binlog日志进行处理，
+(4) mysql可承受的数据量有多大，mongodb呢
+MySQL本身并没有对单表最大记录数进行限制，这个数值取决于你的操作系统对单个文件的限制本身。业界流传是500万行。超过500万行就要考虑分表分库了。阿里巴巴《Java 开发手册》提出单表行数超过 500 万行或者单表容量超过 2GB，才推荐进行分库分表。
+事实上，这个数值和实际记录的条数无关，而与 MySQL 的配置以及机器的硬件有关。因为，MySQL 为了提高性能，会将表的索引装载到内存中。InnoDB buffer size 足够的情况下，其能完成全加载进内存，查询不会有问题。但是，当单表数据库到达某个量级的上限时，导致内存无法存储其索引，使得之后的 SQL 查询会产生磁盘 IO，从而导致性能下降。当然，这个还有具体的表结构的设计有关，最终导致的问题都是内存限制。
+   Mongodb：亿级的数据存储量，.如果一个库有多个表的数据达到亿级时，可能也是考虑使用分片集群的时候，特别是如果此表是做为主业务
+    数据库的情况。
+(5) Mysql中如果一个是id，一个是phone，那么索引是怎么走的
+(6) Mysql聚簇索引
+(7) 事务的隔离级别
+(8) Mysql中如果查询的字段本来是数值型按照字符型查找了会导致索引失效吗
+(9) Mysql的锁机制
+14. Redis
+(1) 中五种数据类型的底层数据结构分别是什么,底层结构是什么？
+     五种数据结构分别式string,list,set,zset,hash
+底层结构：
+String:SDS简单动态字符串，但是仅仅作为参数和返回值来用，优点是降低获取字符串的时间复杂度到o(1)；减少了修改字符串的内存重分配次数；二进制安全（输入输出都是sds的数据格式）
+主要的底层数据是struct_attribute_，主要包含已使用的长度len，除去标头和终止符的长度alloc,存储的字符数据buf[]
+List:主要有两种，一种是ziplist,主要由zlbytes(总的字节数)，zltail(最后一个节点的偏移数)，entries(元素数)，zlend(结束符),底层是数组
+一种是quicklist，但是由于ziplist在插入和删除后需要大量移动数据，所以采用了quicklist,是一个链表形式的数据，实际上就是由多个ziplist组成的链表形式的数据
+Hash:有zipmap和dict两种，zipmap就是普通的key-value类型，但是这种的就是一种轻量级的map结构，查找的时候比较费时间；dict是链表型的，但是比较浪费内存，一般数据量较少的时候都使用zipmap就够用了
+Set:使用柔性数组(即16位可以升级成32位，但是反过来不行)，但是如果数据量过大，会采用dict的类型进行存储
+Zset:有ziplist,zipmap和skiplist（跳跃表的格式）
+(2) 如果string类型的数据太长合理吗？
+String类型的数据过长，如果超过512M就会报错，解决办法是可以将这个大的数据进行一个分解，分成几个小的数据，存取都在业务上进行分割和合并；
+如果是leftpop那种需要进行按时间顺序进行存取的数据，可以将数据按照时间进行存取
+(3) Redis的持久化处理中的aof是如何压缩数据的，为什么要压缩数据
+(4) Redis的分区结构，为什么要做分区
+(5) Redis中的过期时间策略
+(6) 项目中redis都怎么使用的
+15. Docker可以自己手动部署吗
+16. Volitile为什么要使用，单例中使用的原理
+17. 事务的隔离级别有哪几种，分别会造成什么问题
+18. Zookeeper
+19. Io,nio
+20. 设计模式都有哪些用到
+21. Tcp,http,socket
+22. 缓存是如何清理的
+23. Soa架构是什么架构
+24. 分布式架构的缺点和优点
+25. 如果maven中a依赖c的版本1，b依赖c的版本2，这种情况要如何处理
+这种依赖冲突有四种解决办法：最短路径者优先，先声明者优先，排除依赖，版本锁定
+26. 代码中如果有很多if要怎么解决
+27. Set为什么不可重复
+28. 如果浏览器访问一个地址但是图片的地址实际是另一个，要怎么在nginx中进行配置
+29. Es的常用方法都有哪些。列举一下
+30. Git clone和git check 的区别?直接git 出dev分支的命令是什么
+31. Redis和mysql操作日志如何进行查看
+32. 如果用户这边有一个日志要查，而且就这一个字段，你该怎么查，这个字段是字符串
+33. 为什么要手动设置hashmap的初始化值的大小
+如果我们没有设置初始容量大小，随着元素的不断增加，HashMap会发生多次扩容，而HashMap中的扩容机制决定了每次扩容都需要重建hash表，是非常影响性能的。
+34. Hashmap中为什么要明确存放的数据大小，为什么hashmap的容量必须是2的幂数
+向集合中添加元素时，会使用(n - 1) & hash的计算方法来得出该元素在集合中的位置；而第二个截图是HashMap扩容时调用resize()方法中的部分源码，可以看出会新建一个tab，然后遍历旧的tab，将旧的元素进过e.hash & (newCap - 1)的计算添加进新的tab中，也就是(n - 1) & hash的计算方法，其中n是集合的容量，hash是添加的元素进过hash函数计算出来的hash值。
+  HashMap的容量为什么是2的n次幂，和这个(n - 1) & hash的计算方法有着千丝万缕的关系，符号&是按位与的计算，这是位运算，计算机能直接运算，特别高效，按位与&的计算方法是，只有当对应位置的数据都为1时，运算结果也为1，当HashMap的容量是2的n次幂时，(n-1)的2进制也就是1111111***111这样形式的，这样与添加元素的hash值进行位运算时，能够充分的散列，使得添加的元素均匀分布在HashMap的每个位置上，减少hash碰撞，实际的计算结果就是他自己的二进制数本身
+Hashmap默认初始容量为16，当数据达到16*0.75的时候会自动扩容到2^5 = 32,即使手动初始化为9，那么也会开辟16大小的内存，始终保持以2的幂次方为单位的数据
+35. Iterator和listiterator有什么区别
+Iterator只能正向遍历集合，适用于获取移除元素。ListIterator继承自Iterator，专门针对List，可以从两个方向来遍历List，同时支持元素的修改。
+36. 使用oss的原理，poi,视频点播
+37. Java中的线程池都有哪些，他们的区别是什么
+38. Maven中的pom文件常用的标签及其含义
+39. 为什么在nginx可以实现反向代理的情况下还要引入gateway来进行反向代理
+40. Springboot是怎么管理bean的，怎么进行加载配置信息的
+41. 对springcloud的认识，具体讲讲如果springcloud中的某一台服务宕机会如何处理
+42. Rocketmq的底层原理
+43. 对spring的理解，aop都怎么应用到了项目当中
+44. Juc包中的某些类的源码，底层都用到了哪些
+45. 找出最大值的方法都有哪些
+46. 如果状态位设置的时候服务宕机该如何处理
+ 
+ 
+ 
+1. 转转二面
+(1) 你在这个项目中都做了什么
+(2) 项目中遇到的难点
+(3) Mysql最佳左前缀
+(4) 并发包中的类
+(5) 讲一下你对springboot的了解
+(6) Springcloud的了解，如果有一台机器宕机了要怎么处理
+了解：每个服务运行在其独立的进程中，服务之间互相配合，采用轻量级的通信机制进行沟通，能围绕着具体的业务进行构建
+① Springcloud是基于springboot实现的一套微服务架构，是一种思想
+② 通过各种starter和依赖管理解决依赖问题
+③ 通过自动配置，解决配置复杂的问题
+④ 通过内嵌tomcat，由应用启动tomcat而不是tomcat启动应用，来解决部署运行问题
+⑤ Springboot可以脱离sprigcloud单独存在，但是springcloud不能脱离springboot
+(7) Concurrenthashmap的实现
+① 除了加synchronized分段锁，concurrenthashmap还用什么来保证并发
+(8) Cas操作会出现哪些问题
+(9) Aop和jvm的那部分内存结构相关
+(10) Jvm如何判断一个对象是否存活
+(11) 哪些对象可以作为gcroot，对象什么时候可以被回收
+(12) 循环引用，引用计算器法如何判断
+(13) Tcp为什么三次握手
+(14) 二叉左视图
+(15) Hashmap的实现，为什么要用红黑树而不用avl树
+(16) Mysql索引实现，索引结构,主键和索引的区别，索引为什么快，用b+树为什么快
+(17) 为什么用b+树而不用普通二叉树
+(18) Mysql事务隔离级别
+(19) 幻读出现在哪些级别里面
+(20) 如何解决幻读
+(21) 如何解决spring的循环依赖问题
+(22) 可以重写spring吗
+(23) 自己写一个object.lang.string会怎摸样
+(24) 双亲委派机制
+(25) Linux查看服务器状态指令
+(26) 项目经历和对自己工作的深层思考
+(27) 数据库中的druid连接池的好处
+(28) Cpu达到30%如何排查
+(29) Dubbo中的rpc，以及netty
+(30) Sleep和yeild的区别
+(31) 说一个你了解的算法以及实现的思路吧
+(32) Zookeeper的原理以及为什么要用zookeeper而不用其他分布式架构
+(33) Redis的数据结构，如何保证数据的一致性以及使用场景
+(34) 你们rpc框架是如何实现的
+(35) Linux中进程间的通信是通过什么实现的，linux常见的命令
+ 

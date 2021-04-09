@@ -72,7 +72,6 @@ FROM employee e, (
 SELECT @curRank :=0, @prevRank := NULL, @incRank := 1
 ) r 
 ORDER BY salary) s
-123456789
 ```
 
 这是一个查询中的子查询。我们使用三个变量(@incRank，@prevRank，@curRank)来计算关系的情况下，在查询结果中我们已经补全了因为并列而导致的排名空位。我们已经封闭子查询到查询。这个查询相当于MySQL和ORACLE中的RANK()函数。
