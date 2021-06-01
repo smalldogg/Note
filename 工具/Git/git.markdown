@@ -97,3 +97,12 @@ ssh-keygen
 ### git pull
 
 将远程的更新拉取到本地
+
+## git 远程信息切换
+
+### 从ssh切换至https 
+
+```shell
+git remote set-url origin(远程仓库名称) https://email/username/ProjectName.git 
+```
+
