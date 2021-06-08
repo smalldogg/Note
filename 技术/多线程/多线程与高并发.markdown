@@ -6,13 +6,218 @@
 
 
 
-## 模板方法 AbstractExecutorService
+## 模板方法 AbstractExecutorService代码分析
 
 这里我们可以看到AbstractExecutorService这个类，实际上很多方法都是在这个类中定义的
 
+```java
+protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) { //这里的value 为null
+    return new FutureTask<T>(runnable, value);
+}
+```
+
+```java
+protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable) {
+    return new FutureTask<T>(callable);
+}
+```
+
+```java
+public Future<?> submit(Runnable task) {
+    if (task == null) throw new NullPointerException();
+    RunnableFuture<Void> ftask = newTaskFor(task, null);
+    execute(ftask);//执行任务
+    return ftask;
+}
+```
+
+```java
+private <T> T doInvokeAny(Collection<? extends Callable<T>> tasks,
+                          boolean timed, long nanos)
+    throws InterruptedException, ExecutionException, TimeoutException {
+    if (tasks == null)
+        throw new NullPointerException();
+    int ntasks = tasks.size();
+    if (ntasks == 0)
+        throw new IllegalArgumentException();
+    ArrayList<Future<T>> futures = new ArrayList<Future<T>>(ntasks);
+    ExecutorCompletionService<T> ecs =
+        new ExecutorCompletionService<T>(this);
+
+    // For efficiency, especially in executors with limited
+    // parallelism, check to see if previously submitted tasks are
+    // done before submitting more of them. This interleaving
+    // plus the exception mechanics account for messiness of main
+    // loop.
+
+    try {
+        // Record exceptions so that if we fail to obtain any
+        // result, we can throw the last exception we got.
+        ExecutionException ee = null;
+        final long deadline = timed ? System.nanoTime() + nanos : 0L;
+        Iterator<? extends Callable<T>> it = tasks.iterator();
+
+        // Start one task for sure; the rest incrementally
+        futures.add(ecs.submit(it.next()));
+        --ntasks;
+        int active = 1;
+
+        for (;;) {
+            Future<T> f = ecs.poll(); //执行队列中的方法
+            if (f == null) {
+                if (ntasks > 0) {
+                    --ntasks;
+                    futures.add(ecs.submit(it.next()));
+                    ++active;
+                }
+                else if (active == 0)
+                    break;
+                else if (timed) {
+                    f = ecs.poll(nanos, TimeUnit.NANOSECONDS);
+                    if (f == null)
+                        throw new TimeoutException();
+                    nanos = deadline - System.nanoTime();
+                }
+                else
+                    f = ecs.take();//这里会阻塞在这里，等待队列中有值
+            }
+            if (f != null) {
+                --active;
+                try {
+                    return f.get();//这里会阻塞拿值
+                } catch (ExecutionException eex) {
+                    ee = eex;
+                } catch (RuntimeException rex) {
+                    ee = new ExecutionException(rex);
+                }
+            }
+        }
+
+        if (ee == null)
+            ee = new ExecutionException();
+        throw ee;
+
+    } finally {
+        for (int i = 0, size = futures.size(); i < size; i++)
+            futures.get(i).cancel(true);
+    }
+}
+```
+
+这里出现的ecs为
+
+```java
+public class ExecutorCompletionService<V> implements CompletionService<V> {
+    private final Executor executor;
+    private final AbstractExecutorService aes;
+    private final BlockingQueue<Future<V>> completionQueue;//LinkedBlockingQueue
+    
+在任务执行完成之后，会加入到ecs中的completionQueue中
+```
+
+```java
+public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks)
+    throws InterruptedException {
+    if (tasks == null)
+        throw new NullPointerException();
+    ArrayList<Future<T>> futures = new ArrayList<Future<T>>(tasks.size());
+    boolean done = false;
+    try {
+        for (Callable<T> t : tasks) {
+            RunnableFuture<T> f = newTaskFor(t);
+            futures.add(f);
+            execute(f);
+        }
+        for (int i = 0, size = futures.size(); i < size; i++) {
+            Future<T> f = futures.get(i);
+            if (!f.isDone()) {
+                try {
+                    f.get();//阻塞等待完成
+                } catch (CancellationException ignore) {
+                } catch (ExecutionException ignore) {
+                }
+            }
+        }
+        done = true;
+        return futures;
+    } finally {
+        if (!done)
+            for (int i = 0, size = futures.size(); i < size; i++)
+                futures.get(i).cancel(true);
+    }
+}
+```
+
+### ThreadPoolExecutor中方法
+
+```java
+public void execute(Runnable command) {
+        if (command == null)
+            throw new NullPointerException();
+        /*
+         * Proceed in 3 steps:
+         *
+         * 1. If fewer than corePoolSize threads are running, try to
+         * start a new thread with the given command as its first
+         * task.  The call to addWorker atomically checks runState and
+         * workerCount, and so prevents false alarms that would add
+         * threads when it shouldn't, by returning false.
+         *
+         * 2. If a task can be successfully queued, then we still need
+         * to double-check whether we should have added a thread
+         * (because existing ones died since last checking) or that
+         * the pool shut down since entry into this method. So we
+         * recheck state and if necessary roll back the enqueuing if
+         * stopped, or start a new thread if there are none.
+         *
+         * 3. If we cannot queue task, then we try to add a new
+         * thread.  If it fails, we know we are shut down or saturated
+         * and so reject the task.
+         */
+        int c = ctl.get();
+        if (workerCountOf(c) < corePoolSize) {
+            if (addWorker(command, true))
+                return;
+            c = ctl.get();
+        }
+        if (isRunning(c) && workQueue.offer(command)) {
+            int recheck = ctl.get();//查看线程池的运行状态,如果不再运行，那么拿出任务
+            if (! isRunning(recheck) && remove(command))
+                reject(command);
+            else if (workerCountOf(recheck) == 0)
+                addWorker(null, false);
+        }
+        else if (!addWorker(command, false))
+            reject(command);
+    }
+
+    /**
+     * Initiates an orderly shutdown in which previously submitted
+     * tasks are executed, but no new tasks will be accepted.
+     * Invocation has no additional effect if already shut down.
+     *
+     * <p>This method does not wait for previously submitted tasks to
+     * complete execution.  Use {@link #awaitTermination awaitTermination}
+     * to do that.
+     *
+     * @throws SecurityException {@inheritDoc}
+     */
+    public void shutdown() {
+        final ReentrantLock mainLock = this.mainLock;
+        mainLock.lock();
+        try {
+            checkShutdownAccess();
+            advanceRunState(SHUTDOWN);
+            interruptIdleWorkers();
+            onShutdown(); // hook for ScheduledThreadPoolExecutor
+        } finally {
+            mainLock.unlock();
+        }
+        tryTerminate();
+    }
+```
 
 
-## 源码分析
 
 
 
